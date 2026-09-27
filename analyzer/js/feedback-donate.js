@@ -402,7 +402,7 @@
         const data = await window.pywebview.api.open_in_editor(rootToSend, origRel, editor);
         if (data && data.success) {
           setStatus('Opened in editor');
-          showToast('Opened in ' + editor, 5000, () => showSettings());
+          showToast((window.t ? window.t('Opened in') : 'Opened in') + ' ' + editor, 5000, () => showSettings());
         } else throw new Error(data && data.error || 'Launch failed');
       } catch (e) {
         setStatus('Failed to open in editor. Check Settings and Local Root.');

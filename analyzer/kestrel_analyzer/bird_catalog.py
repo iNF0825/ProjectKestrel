@@ -21,6 +21,7 @@ from typing import Iterable
 from .config import MODELS_DIR
 
 CATALOG_PATH = MODELS_DIR / "birds" / "birds_global.csv"
+ZH_NAMES_PATH = MODELS_DIR / "birds" / "zh_hant_names.csv"
 
 # Region codes that ``Settings`` may legally store. Kept here -- not in
 # ``settings_utils`` -- so the data layer owns the vocabulary and the
@@ -61,6 +62,7 @@ class BirdRecord:
     alpha_4: str
     aliases: tuple[str, ...]
     is_model_species: bool
+    name_zh: str = ""
 
     def matches_any_region(self, selected: frozenset[str]) -> bool:
         """True if at least one of ``regions`` is in ``selected``.
@@ -104,18 +106,38 @@ def _parse_aliases(s: str) -> tuple[str, ...]:
     return tuple(p for p in (t.strip() for t in s.split("|")) if p)
 
 
+def load_zh_names(path: Path | None = None) -> dict[str, str]:
+    """Map scientific name -> Traditional Chinese display name.
+
+    Missing file yields an empty map so the English catalog still loads.
+    """
+    p = Path(path) if path is not None else ZH_NAMES_PATH
+    out: dict[str, str] = {}
+    if not p.is_file():
+        return out
+    with open(p, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            sci = (row.get("scientific_name") or "").strip()
+            name = (row.get("name_zh") or "").strip()
+            if sci and name:
+                out[sci] = name
+    return out
+
+
 def load_catalog(path: Path | None = None) -> list[BirdRecord]:
     """Read the bundled CSV. Skips header-equivalent or empty rows defensively."""
     p = Path(path) if path is not None else CATALOG_PATH
+    zh_names = load_zh_names(p.parent / "zh_hant_names.csv")
     out: list[BirdRecord] = []
     with open(p, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             name = (row.get("canonical_common_name") or "").strip()
             if not name:
                 continue
+            sci = (row.get("scientific_name") or "").strip()
             out.append(BirdRecord(
                 canonical_common_name=name,
-                scientific_name=(row.get("scientific_name") or "").strip(),
+                scientific_name=sci,
                 family_sci=(row.get("family_sci") or "").strip(),
                 family_common=(row.get("family_common") or "").strip(),
                 order=(row.get("order") or "").strip(),
@@ -123,6 +145,7 @@ def load_catalog(path: Path | None = None) -> list[BirdRecord]:
                 alpha_4=(row.get("alpha_4") or "").strip().upper(),
                 aliases=_parse_aliases(row.get("aliases") or ""),
                 is_model_species=(row.get("is_model_species") or "").strip() == "1",
+                name_zh=zh_names.get(sci, ""),
             ))
     return out
 
@@ -227,6 +250,7 @@ def score_record(query: str, rec: BirdRecord) -> int:
     sci = rec.scientific_name.lower()
     aliases_lower = [a.lower() for a in rec.aliases]
     alpha = rec.alpha_4.lower()
+    zh = (rec.name_zh or "").strip()
 
     # 1. Alpha-4 exact match (case-insensitive)
     if alpha and len(q) == 4 and q == alpha:
@@ -235,6 +259,8 @@ def score_record(query: str, rec: BirdRecord) -> int:
     # 2. Exact field matches
     if q == common:
         return _SCORE_COMMON_EXACT
+    if zh and q == zh:
+        return _SCORE_COMMON_EXACT
     if q in aliases_lower:
         return _SCORE_ALIAS_EXACT
     if q == sci:
@@ -242,6 +268,8 @@ def score_record(query: str, rec: BirdRecord) -> int:
 
     # 3. Prefix matches
     if common.startswith(q):
+        return _SCORE_COMMON_PREFIX
+    if zh and zh.startswith(q):
         return _SCORE_COMMON_PREFIX
     if any(a.startswith(q) for a in aliases_lower):
         return _SCORE_ALIAS_PREFIX
@@ -261,6 +289,8 @@ def score_record(query: str, rec: BirdRecord) -> int:
 
     # 6. Substring matches
     if q in common or any(q in a for a in aliases_lower):
+        return _SCORE_SUBSTRING
+    if zh and q in zh:
         return _SCORE_SUBSTRING
     if q in sci:
         return _SCORE_SCI_SUBSTRING
@@ -455,6 +485,7 @@ def record_to_dict(rec: BirdRecord) -> dict:
         "alpha_4": rec.alpha_4,
         "aliases": list(rec.aliases),
         "is_model_species": rec.is_model_species,
+        "name_zh": rec.name_zh,
     }
 
 

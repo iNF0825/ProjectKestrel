@@ -1362,6 +1362,7 @@
     let rows = [];
     let header = [];
     let scenes = [];            // [{id, images[], species, ...}]
+    let _cullZhRefresh = false;
     let cullingState = new Map(); // filename -> 'accept' | 'reject'
     let blobUrlCache = new Map();
     let _normalizedRatings = {};   // filename -> auto rating from apply_normalization()
@@ -2250,11 +2251,25 @@
         // Scene label
         const label = document.createElement('div');
         label.className = 'scene-label';
-        const speciesText = scene.species.length ? scene.species.join(', ') : 'Unknown';
+        const speciesText = scene.species.length
+          ? scene.species.map(sp => (window.kestrelI18n && window.kestrelI18n.displayBirdName)
+              ? window.kestrelI18n.displayBirdName(sp) : sp).join(', ')
+          : (window.t ? window.t('Unknown') : 'Unknown');
+        const imageCountLabel = `${scene.images.length} image${scene.images.length === 1 ? '' : 's'}`;
         label.innerHTML = `<b>Scene #${escapeHtml(scene.id)}</b>` +
           (scene.sceneName ? ` — ${escapeHtml(scene.sceneName)}` : '') +
-          ` <span style="color:var(--muted);font-size:11px">${escapeHtml(speciesText)} · ${scene.images.length} image${scene.images.length === 1 ? '' : 's'}</span>` +
+          ` <span style="color:var(--muted);font-size:11px">${escapeHtml(speciesText)} · <span>${escapeHtml(imageCountLabel)}</span></span>` +
           `<span class="unrated-badge scene-unrated-badge ${scene.hasAnyUnrated ? '' : 'hidden'}">⚠ Contains unrated photos</span>`;
+        if (window.kestrelI18n && window.kestrelI18n.ensureBirdNames && scene.species.length) {
+          const missing = scene.species.filter(sp => !window.kestrelI18n.peekBird(sp));
+          if (missing.length && !_cullZhRefresh) {
+            _cullZhRefresh = true;
+            window.kestrelI18n.ensureBirdNames(missing).then(() => {
+              _cullZhRefresh = false;
+              renderAllScenes();
+            });
+          }
+        }
         
         // Add bulk action buttons
         const bulkActionsDiv = document.createElement('div');
@@ -2396,6 +2411,14 @@
       const activeCropPath = activeCrop?.crop_path || row.crop_path;
       const activeSpecies = activeCrop?.species || row.species || 'Unknown';
       const activeSpeciesConf = activeCrop?.species_confidence ?? row.species_confidence;
+      if (window.kestrelI18n && activeSpecies && activeSpecies !== 'Unknown' && !window.kestrelI18n.peekBird(activeSpecies)) {
+        window.kestrelI18n.ensureBirdNames([activeSpecies]).then(() => {
+          const slot = document.querySelector('#previewMeta [data-species-value]');
+          if (slot && previewRow === row) {
+            slot.textContent = `${window.kestrelI18n.displayBirdName(activeSpecies)} (${fmt3(activeSpeciesConf)})`;
+          }
+        });
+      }
       const activeFamily = activeCrop?.family || row.family || 'Unknown';
       const activeFamilyConf = activeCrop?.family_confidence ?? row.family_confidence;
       const activeQuality = activeCrop?.quality ?? row.quality;
@@ -2436,7 +2459,7 @@
       const meta = el('#previewMeta');
       meta.innerHTML = `
         <div class="row"><span class="label">Filename</span><span class="value" title="${escapeHtml(row.filename || '')}">${escapeHtml(row.filename || '')}</span></div>
-        <div class="row"><span class="label">Species</span><span class="value">${escapeHtml(activeSpecies)} (${fmt3(activeSpeciesConf)})</span></div>
+        <div class="row"><span class="label">Species</span><span class="value" data-species-value="1">${escapeHtml((window.kestrelI18n && window.kestrelI18n.displayBirdName) ? window.kestrelI18n.displayBirdName(activeSpecies) : activeSpecies)} (${fmt3(activeSpeciesConf)})</span></div>
         <div class="row"><span class="label">Family</span><span class="value">${escapeHtml(activeFamily)} (${fmt3(activeFamilyConf)})</span></div>
         <div class="row"><span class="label">Quality</span><span class="value">${fmt3(activeQuality)}</span></div>
         <div class="row"><span class="label">Crop</span><span class="value">${cropState.activeIndex + 1}/${cropState.crops.length || 1}</span></div>
@@ -3452,14 +3475,19 @@
       var nudge    = el('#tutorialNudge');
       var nextBtn  = el('#tutorialNext');
 
-      // Update text
-      el('#tutorialCounter').textContent = 'Step ' + (idx + 1) + ' of ' + TUTORIAL_STEPS.length;
-      el('#tutorialTitle').innerHTML = step.title;
-      el('#tutorialBody').innerHTML  = step.body;
+      // Update text. Translate the whole title and body before insertion so
+      // short dictionary keys (Accept, Click, Done) are not applied inside
+      // the sentence.
+      var tr = window.t || function (s) { return s; };
+      el('#tutorialTitle').setAttribute('data-i18n-skip', '');
+      el('#tutorialBody').setAttribute('data-i18n-skip', '');
+      el('#tutorialCounter').textContent = tr('Step ' + (idx + 1) + ' of ' + TUTORIAL_STEPS.length);
+      el('#tutorialTitle').innerHTML = tr(step.title);
+      el('#tutorialBody').innerHTML  = tr(step.body);
 
       // Nudge (click-to-advance hint)
       if (step.nudge) {
-        nudge.textContent = step.nudge;
+        nudge.textContent = tr(step.nudge);
         nudge.style.display = '';
       } else {
         nudge.style.display = 'none';
@@ -3595,8 +3623,14 @@
 
       const folderName = rootPath.replace(/.*[/\\]/, '') || rootPath;
       el('#folderName').textContent = folderName;
+      const rawTitle = 'Culling Assistant — ' + folderName;
+      const windowTitle = window.t ? window.t(rawTitle) : rawTitle;
+      document.title = windowTitle;
 
       const ready = await waitForPywebview(['read_kestrel_csv', 'get_settings'], 10000);
+      if (window.pywebview?.api?.set_culling_window_title) {
+        window.pywebview.api.set_culling_window_title(windowTitle);
+      }
       if (!ready) {
         el('#statusLabel').textContent = 'Error: pywebview API not available';
         return;

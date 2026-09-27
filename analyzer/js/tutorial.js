@@ -310,50 +310,51 @@
     }
 
     function _renderTutWorkflowCard(bodyEl) {
+      var tr = window.t || function (s) { return s; };
       bodyEl.innerHTML =
-        '<div class="tut-workflow-intro">Pick the workflow that fits how you already edit — Kestrel plugs into any of them.</div>' +
+        '<div class="tut-workflow-intro">' + tr('Pick the workflow that fits how you already edit — Kestrel plugs into any of them.') + '</div>' +
         '<div class="tut-workflow-tabs" role="tablist">' +
-          '<button type="button" class="tut-wf-tab active" data-tab="none">No workflow changes</button>' +
-          '<button type="button" class="tut-wf-tab" data-tab="cull">Cut the blurry bulk</button>' +
-          '<button type="button" class="tut-wf-tab" data-tab="favs">Just my favorites</button>' +
+          '<button type="button" class="tut-wf-tab active" data-tab="none">' + tr('No workflow changes') + '</button>' +
+          '<button type="button" class="tut-wf-tab" data-tab="cull">' + tr('Cut the blurry bulk') + '</button>' +
+          '<button type="button" class="tut-wf-tab" data-tab="favs">' + tr('Just my favorites') + '</button>' +
         '</div>' +
         '<div class="tut-workflow-panels">' +
           '<div class="tut-wf-panel active" data-panel="none">' +
             '<div class="tut-wf-flow">' +
-              '<div class="tut-wf-node">Your Photos</div>' +
+              '<div class="tut-wf-node">' + tr('Your Photos') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node accent">Kestrel Analyzes</div>' +
+              '<div class="tut-wf-node accent">' + tr('Kestrel Analyzes') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node highlight">Write Metadata</div>' +
+              '<div class="tut-wf-node highlight">' + tr('Write Metadata') + '</div>' +
             '</div>' +
-            '<div class="tut-wf-caption">Just export Kestrel’s analysis as XMP sidecars, then browse them in the photo editor you already use.</div>' +
+            '<div class="tut-wf-caption">' + tr('Just export Kestrel’s analysis as XMP sidecars, then browse them in the photo editor you already use.') + '</div>' +
           '</div>' +
           '<div class="tut-wf-panel" data-panel="cull">' +
             '<div class="tut-wf-flow">' +
-              '<div class="tut-wf-node">Your Photos</div>' +
+              '<div class="tut-wf-node">' + tr('Your Photos') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node accent">Kestrel Analyzes</div>' +
+              '<div class="tut-wf-node accent">' + tr('Kestrel Analyzes') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node highlight">Culling Assistant</div>' +
+              '<div class="tut-wf-node highlight">' + tr('Culling Assistant') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node">Accepts / Rejects</div>' +
+              '<div class="tut-wf-node">' + tr('Accepts / Rejects') + '</div>' +
             '</div>' +
-            '<div class="tut-wf-caption">Use the <b>Culling Assistant</b> to cut the blurry bulk — keep the sharp photos and archive the rest in one pass.</div>' +
+            '<div class="tut-wf-caption">' + tr('Use the <b>Culling Assistant</b> to cut the blurry bulk — keep the sharp photos and archive the rest in one pass.') + '</div>' +
           '</div>' +
           '<div class="tut-wf-panel" data-panel="favs">' +
             '<div class="tut-wf-flow">' +
-              '<div class="tut-wf-node">Your Photos</div>' +
+              '<div class="tut-wf-node">' + tr('Your Photos') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node accent">Kestrel Analyzes</div>' +
+              '<div class="tut-wf-node accent">' + tr('Kestrel Analyzes') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node">Pick Favorites</div>' +
+              '<div class="tut-wf-node">' + tr('Pick Favorites') + '</div>' +
               '<div class="tut-wf-arrow">→</div>' +
-              '<div class="tut-wf-node highlight">Open in Editor</div>' +
+              '<div class="tut-wf-node highlight">' + tr('Open in Editor') + '</div>' +
             '</div>' +
-            '<div class="tut-wf-caption">Browse your scenes in Kestrel and press <kbd>Space</kbd> on the ones you love — they open straight in your photo editor.</div>' +
+            '<div class="tut-wf-caption">' + tr('Browse your scenes in Kestrel and press <kbd>Space</kbd> on the ones you love — they open straight in your photo editor.') + '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="tut-workflow-hint">We’ve highlighted the two buttons you’ll use most: <b>Write Photo Metadata</b> and <b>Open Culling Assistant</b>.</div>';
+        '<div class="tut-workflow-hint">' + tr('We’ve highlighted the two buttons you’ll use most: <b>Write Photo Metadata</b> and <b>Open Culling Assistant</b>.') + '</div>';
 
       var tabs = bodyEl.querySelectorAll('.tut-wf-tab');
       var panels = bodyEl.querySelectorAll('.tut-wf-panel');
@@ -369,7 +370,9 @@
     function _renderTutEditorPicker(bodyEl, onChosen) {
       var intro = document.createElement('div');
       intro.className = 'tut-editor-intro';
-      intro.innerHTML = 'Inside any scene, press <kbd>Space</kbd> or click the <b>Open</b> button (top-right of the info bar) to launch the original in your chosen editor.';
+      var tr = window.t || function (s) { return s; };
+      intro.setAttribute('data-i18n-skip', '');
+      intro.innerHTML = tr('Inside any scene, press <kbd>Space</kbd> or click the <b>Open</b> button (top-right of the info bar) to launch the original in your chosen editor.');
       bodyEl.innerHTML = '';
       bodyEl.appendChild(intro);
 
@@ -388,7 +391,7 @@
         b.type = 'button';
         b.className = 'tut-editor-btn';
         b.setAttribute('data-key', c.key);
-        b.innerHTML = '<span class="tut-editor-label">' + c.label + '</span>';
+        b.innerHTML = '<span class="tut-editor-label">' + tr(c.label) + '</span>';
         b.addEventListener('click', function() { onChosen(c.key, b); });
         grid.appendChild(b);
       });
@@ -396,7 +399,8 @@
 
       var foot = document.createElement('div');
       foot.className = 'tut-editor-foot';
-      foot.textContent = 'You can change this anytime in Settings.';
+      foot.setAttribute('data-i18n-skip', '');
+      foot.textContent = tr('You can change this anytime in Settings.');
       bodyEl.appendChild(foot);
     }
 
@@ -433,8 +437,11 @@
         }
       }
 
-      _tutEl('#tutorialCounter').textContent = 'Step ' + (idx + 1) + ' of ' + _tutSteps.length;
-      _tutEl('#tutorialTitle').innerHTML = step.title;
+      var tr = window.t || function (s) { return s; };
+      _tutEl('#tutorialCounter').textContent = tr('Step ' + (idx + 1) + ' of ' + _tutSteps.length);
+      _tutEl('#tutorialTitle').setAttribute('data-i18n-skip', '');
+      bodyEl.setAttribute('data-i18n-skip', '');
+      _tutEl('#tutorialTitle').innerHTML = tr(step.title);
 
       if (step.customBody === 'workflowCard') {
         card.classList.add('tut-card-workflow');
@@ -461,14 +468,15 @@
           }
         });
       } else {
-        bodyEl.innerHTML = step.body || '';
+        bodyEl.innerHTML = tr(step.body || '');
       }
 
       // Optional inline footer link (e.g. Basics → Advanced)
       if (step.inlineFooter === 'advancedLink') {
         var foot = document.createElement('div');
         foot.className = 'tut-inline-foot';
-        foot.innerHTML = 'Want the deep dive? <a href="#" id="tutStartAdvancedLink">Open the Advanced Tutorial</a>';
+        foot.setAttribute('data-i18n-skip', '');
+        foot.innerHTML = tr('Want the deep dive? <a href="#" id="tutStartAdvancedLink">Open the Advanced Tutorial</a>');
         bodyEl.appendChild(foot);
         var ln = foot.querySelector('#tutStartAdvancedLink');
         if (ln) ln.addEventListener('click', function(ev) {
@@ -478,7 +486,8 @@
         });
       }
 
-      if (step.nudge) { nudge.textContent = step.nudge; nudge.style.display = ''; }
+      nudge.setAttribute('data-i18n-skip', '');
+      if (step.nudge) { nudge.textContent = tr(step.nudge); nudge.style.display = ''; }
       else nudge.style.display = 'none';
 
       var dotsCont = _tutEl('#tutorialProgress');

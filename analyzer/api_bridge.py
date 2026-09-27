@@ -2962,8 +2962,22 @@ class Api:
             return {'success': True}
         except Exception as e:
             error(f'[API] open_culling_window error: {e}')
-            import traceback
-            error(f'[culling] Traceback: {traceback.format_exc()}')
+            return {'success': False, 'error': str(e)}
+
+    def set_culling_window_title(self, title: str):
+        """Update the culling window caption after the UI language is applied."""
+        try:
+            win = self._culling_window
+            text = str(title or '').strip()
+            if win is None or not text or len(text) > 300:
+                return {'success': False, 'error': 'no window'}
+            if hasattr(win, 'set_title'):
+                win.set_title(text)
+            else:
+                win.title = text
+            return {'success': True}
+        except Exception as e:
+            error(f'[API] set_culling_window_title error: {e}')
             return {'success': False, 'error': str(e)}
 
     def _get_oauth_lock(self):

@@ -249,7 +249,7 @@
         tip.className = 'filmstrip-tooltip';
         tip.innerHTML = [
           `<b>${escapeHtml(r.filename || '')}</b>`,
-          `Species: ${escapeHtml(r.species || 'Unknown')} (${fmt3(r.species_confidence)})`,
+          `Species: ${escapeHtml(_displaySpeciesName(r.species || 'Unknown'))} (${fmt3(r.species_confidence)})`,
           `Quality: ${fmt3(r.quality)}`,
           `Rating: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)} ${origin ? `(${origin})` : ''}`,
           cull ? `Status: ${cull === 'accept' ? '✓ Accepted' : '✗ Rejected'}` : '',
@@ -876,7 +876,9 @@
         if (showSci) c.classList.add('chip--with-sci');
         const primary = document.createElement('span');
         primary.className = 'chip-primary';
-        primary.textContent = name;
+        const shown = _displaySpeciesName(name);
+        primary.textContent = shown;
+        if (shown !== name) primary.title = name;
         c.appendChild(primary);
         let titleStr = name;
         if (showSci) {
@@ -920,6 +922,14 @@
     function _cacheBirdRecord(rec) {
       if (!rec || typeof rec.canonical_common_name !== 'string') return;
       _birdRecordCache.set(rec.canonical_common_name.toLowerCase(), rec);
+      if (window.kestrelI18n && window.kestrelI18n.rememberBird) window.kestrelI18n.rememberBird(rec);
+    }
+
+    function _displaySpeciesName(english, rec) {
+      if (window.kestrelI18n && window.kestrelI18n.displayBirdName) {
+        return window.kestrelI18n.displayBirdName(english, rec || _getCachedBirdRecord(english));
+      }
+      return english;
     }
 
     function _getCachedBirdRecord(name) {
@@ -1020,7 +1030,8 @@
       }
       const showSci = _getShowSciNames();
       const html = items.map((rec, i) => {
-        const name = rec.canonical_common_name || '';
+        const stored = rec.canonical_common_name || '';
+        const name = _displaySpeciesName(stored, rec);
         const sci  = rec.scientific_name || '';
         const fam  = rec.family_common || '';
         const code = rec.alpha_4 || '';
@@ -1029,10 +1040,11 @@
           ? `<span class="chip-combo-sci"><em>${escapeHtml(sci)}</em></span>` : '';
         const codeHtml = code ? `<span class="chip-combo-alpha">${escapeHtml(code)}</span>` : '';
         const famHtml  = fam ? `<span class="chip-combo-family">${escapeHtml(fam)}</span>` : '';
+        const titleAttr = name !== stored ? ` title="${escapeHtml(stored)}"` : '';
         return (
-          `<div class="${cls}" data-combo-index="${i}" data-combo-name="${escapeHtml(name)}">` +
+          `<div class="${cls}" data-combo-index="${i}" data-combo-name="${escapeHtml(stored)}">` +
             `<div class="chip-combo-left">` +
-              `<span class="chip-combo-name">${escapeHtml(name)}</span>` +
+              `<span class="chip-combo-name"${titleAttr}>${escapeHtml(name)}</span>` +
               sciHtml +
             `</div>` +
             `<div class="chip-combo-right">${codeHtml}${famHtml}</div>` +
@@ -1114,6 +1126,7 @@
      *  the subtext on a second line within the same chip. */
     function _renderTagPillHtml(primary, sci, options) {
       const opts = options || {};
+      const display = opts.displayLabel || primary;
       const chipClass = opts.chipClass || 'chip';
       const removeAttr = opts.removeAttr || '';
       const showSci = !!opts.showSci && !!sci;
@@ -1123,7 +1136,8 @@
       const sciHtml = showSci
         ? `<span class="chip-sci"><em>${escapeHtml(sci)}</em></span>` : '';
       const cls = showSci ? `${chipClass} chip--with-sci` : chipClass;
-      return `<span class="${cls}"><span class="chip-primary">${escapeHtml(primary)}</span>${sciHtml}${removeBtn}</span>`;
+      const titleAttr = display !== primary ? ` title="${escapeHtml(primary)}"` : '';
+      return `<span class="${cls}"><span class="chip-primary"${titleAttr}>${escapeHtml(display)}</span>${sciHtml}${removeBtn}</span>`;
     }
 
     /** Add a species to the draft and, if the species is in the taxonomy map,
@@ -1183,6 +1197,7 @@
           const sci = rec ? rec.scientific_name : '';
           html += _renderTagPillHtml(sp, sci, {
             chipClass, removeAttr: 'remove-species', showSci,
+            displayLabel: _displaySpeciesName(sp, rec),
           });
         }
       } else {
@@ -2327,7 +2342,7 @@
         tip.className = 'filmstrip-tooltip';
         tip.innerHTML = [
           `<b>${escapeHtml(r.filename || '')}</b>`,
-          `Species: ${escapeHtml(r.species || 'Unknown')} (${fmt3(r.species_confidence)})`,
+          `Species: ${escapeHtml(_displaySpeciesName(r.species || 'Unknown'))} (${fmt3(r.species_confidence)})`,
           `Quality: ${fmt3(r.quality)}`,
           `Rating: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}`,
         ].filter(Boolean).join('<br>');

@@ -53,7 +53,7 @@
         }
         const row = document.createElement('div');
         row.className = 'folder-group-actions-item' + (it.danger ? ' folder-group-actions-item--danger' : '');
-        row.innerHTML = `<i>${it.icon}</i> ${it.label}`;
+        row.innerHTML = `<i>${it.icon}</i> ${(window.t ? window.t(it.label) : it.label)}`;
         row.addEventListener('click', (ev) => {
           ev.stopPropagation();
           _closeFolderActionsMenu();
@@ -62,6 +62,30 @@
         menu.appendChild(row);
       }
       return menu;
+    }
+
+    let _sceneGridZhTimer = 0;
+    let _sceneGridZhBatch = [];
+    function _scheduleSceneGridZh(names) {
+      if (!window.kestrelI18n || window.kestrelI18n.getLanguage() !== 'zh-Hant') return;
+      for (const n of names || []) {
+        if (n && !window.kestrelI18n.peekBird(n) && _sceneGridZhBatch.indexOf(n) < 0) {
+          _sceneGridZhBatch.push(n);
+        }
+      }
+      if (!_sceneGridZhBatch.length) return;
+      clearTimeout(_sceneGridZhTimer);
+      _sceneGridZhTimer = setTimeout(() => {
+        const batch = _sceneGridZhBatch;
+        _sceneGridZhBatch = [];
+        window.kestrelI18n.ensureBirdNames(batch).then(() => {
+          const got = batch.some(n => {
+            const rec = window.kestrelI18n.peekBird(n);
+            return rec && rec.name_zh;
+          });
+          if (got) renderScenes();
+        });
+      }, 40);
     }
 
     async function renderScenes() {
@@ -359,7 +383,11 @@
           if (_showSciOnCards) c.classList.add('chip--with-sci');
           const primary = document.createElement('span');
           primary.className = 'chip-primary';
-          primary.textContent = firstPill;
+          const showZh = !!(s.species && s.species.length && window.kestrelI18n && window.kestrelI18n.displayBirdName);
+          if (showZh) _scheduleSceneGridZh(s.species);
+          const shownPill = showZh ? window.kestrelI18n.displayBirdName(firstPill) : firstPill;
+          primary.textContent = shownPill;
+          if (shownPill !== firstPill) primary.title = firstPill;
           c.appendChild(primary);
           let titleStr = firstPill;
           if (_showSciOnCards) {
@@ -624,7 +652,7 @@
 
           const actionsTrigger = document.createElement('button');
           actionsTrigger.className = 'action-btn folder-group-actions-trigger';
-          actionsTrigger.innerHTML = '<i>⋯</i> Folder Actions <span class="caret">▾</span>';
+          actionsTrigger.innerHTML = '<i>⋯</i> ' + (window.t ? window.t('Folder Actions') : 'Folder Actions') + ' <span class="caret">▾</span>';
           actionsTrigger.title = 'More actions for this folder';
           const _folderPathForMenu = fd.folderPath;
           actionsTrigger.addEventListener('click', (ev) => {
@@ -658,7 +686,7 @@
           repairBtn.type = 'button';
           repairBtn.className = 'action-btn folder-repair-btn hidden';
           repairBtn.dataset.repairRoot = fd.folderPath;
-          repairBtn.innerHTML = '<i>⚠</i> Repair Kestrel Data';
+          repairBtn.innerHTML = '<i>⚠</i> ' + (window.t ? window.t('Repair Kestrel Data') : 'Repair Kestrel Data');
           repairBtn.title = 'Kestrel data and photos no longer match';
           repairBtn.addEventListener('click', (ev) => {
             ev.stopPropagation();
@@ -668,7 +696,7 @@
 
           const cullingBtn = document.createElement('button');
           cullingBtn.className = 'action-btn culling-assistant-btn';
-          cullingBtn.innerHTML = '<i>✂</i> Open Culling Assistant';
+          cullingBtn.innerHTML = '<i>✂</i> ' + (window.t ? window.t('Open Culling Assistant') : 'Open Culling Assistant');
           cullingBtn.title = 'Open the AI-assisted culling workflow for this folder';
           cullingBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openCullingAssistant(fd.folderPath); });
           rightActions.appendChild(cullingBtn);
@@ -677,7 +705,7 @@
           perchBtn.type = 'button';
           perchBtn.className = 'action-btn folder-perch-btn';
           perchBtn.dataset.folderPath = fd.folderPath;
-          perchBtn.innerHTML = '<i>\u{1FAB6}</i> <span class="folder-perch-btn-label">Share with Perch</span>';
+          perchBtn.innerHTML = '<i>\u{1FAB6}</i> <span class="folder-perch-btn-label">' + (window.t ? window.t('Share with Perch') : 'Share with Perch') + '</span>';
           perchBtn.title = 'Share this folder to Perch (or manage existing perch)';
           perchBtn.addEventListener('click', (ev) => {
             ev.stopPropagation();
@@ -693,7 +721,7 @@
               if (res && res.present && res.link) {
                 perchBtn.classList.add('is-linked');
                 const lbl = perchBtn.querySelector('.folder-perch-btn-label');
-                if (lbl) lbl.textContent = 'On Perch';
+                if (lbl) lbl.textContent = window.t ? window.t('On Perch') : 'On Perch';
                 perchBtn.dataset.perchUrl = String(res.link.perch_url || '');
                 perchBtn.title = 'This folder is published to Perch (click to manage)';
               }

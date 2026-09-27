@@ -25,3 +25,18 @@ publicly documented license.
   preferred English name differs between authorities (see
   ``tools/build_bird_catalog.py``, ``AOS_TO_IOC_OVERRIDES``).
 * Family display names (``family_common``) preserve the existing ``analyzer/models/scispecies_dispname.csv`` mapping where present and fall back to IOC's *Family (English)* otherwise.
+
+## Traditional Chinese display names
+
+``zh_hant_names.csv`` is a display-only table keyed by scientific name. It does
+not replace the English names stored on photos, scene tags, or XMP.
+
+* **Taiwan conventional names** come from the 2026 TWBF Checklist of the Birds
+  of Taiwan (中華民國野鳥學會, revised 2026-08-20), which follows the 2025
+  eBird/Clements taxonomy. https://www.bird.org.tw/basicpage/87
+  When a scientific name matches, that Chinese name is the one shown.
+* **All other species** use the ``Chinese (Traditional)`` column of the IOC
+  World Bird List Multilingual Version (v15.1), same CC-BY 3.0 license as the
+  English catalog. The name before a bracketed alternate (``〔…〕``) is kept.
+  If that cell is empty, the simplified Chinese cell is converted with
+  OpenCC ``s2twp``. Species with no Chinese name in either source stay English.

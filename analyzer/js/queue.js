@@ -731,6 +731,10 @@
       const dets = item.current_detections || [];
       const quality = item.current_quality_results || [];
       const species = item.current_species_results || [];
+      if (window.kestrelI18n && window.kestrelI18n.ensureBirdNames && species.length) {
+        const missing = species.map(sp => sp && sp.species).filter(n => n && !window.kestrelI18n.peekBird(n));
+        if (missing.length) window.kestrelI18n.ensureBirdNames(missing).then(() => _updateLiveCropCards(item));
+      }
       const cardCount = Math.max(crops.length, dets.length, quality.length, species.length);
 
       // Keep card count in sync with current live detections.
@@ -804,7 +808,9 @@
           const sp = species[i];
           const spConf = sp.species_confidence ?? 0;
           const fmConf = sp.family_confidence ?? 0;
-          spEl.textContent = `${sp.species || '–'} (${spConf.toFixed(2)})`;
+          spEl.textContent = `${(window.kestrelI18n && window.kestrelI18n.displayBirdName)
+            ? window.kestrelI18n.displayBirdName(sp.species || '–')
+            : (sp.species || '–')} (${spConf.toFixed(2)})`;
           spEl.className = 'ldc-species ' + (spConf >= CONF_HIGH ? 'high-conf' : spConf < CONF_LOW ? 'low-conf' : '');
           fmEl.textContent = sp.family ? `${sp.family} (${fmConf.toFixed(2)})` : '–';
           fmEl.className = 'ldc-family ' + (fmConf >= CONF_HIGH ? 'high-conf' : fmConf < CONF_LOW ? 'low-conf' : '');

@@ -315,7 +315,7 @@
           const result = await window.pywebview.api.clear_kestrel_data(folderPath);
           if (result && result.success) {
             if (typeof showToast === 'function') {
-              showToast('Kestrel analysis data cleared for ' + (folderName || folderPath));
+              showToast((window.t ? window.t('Kestrel analysis data cleared for') : 'Kestrel analysis data cleared for') + ' ' + (folderName || folderPath));
             }
             if (refreshCallback) refreshCallback();
           } else if (typeof showToast === 'function') {

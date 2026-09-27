@@ -113,6 +113,9 @@
     // downgraded to text, and <a> is forced to https + safe rel/target. The note
     // content is build-local, so this is defense-in-depth rather than a hard
     // boundary — but it keeps the one innerHTML path honest.
+    function trNote(s) {
+      return window.t ? window.t(s) : s;
+    }
     function sanitizeRichText(html) {
       var allowed = { B: [], STRONG: [], I: [], EM: [], BR: [], A: ['href'] };
       var tpl = document.createElement('template');
@@ -186,17 +189,17 @@
           var href = lk && lk.href ? safeHttpsUrl(lk.href) : null;
           if (!href) return '';
           return '<a class="wln-card-link" href="' + escapeAttr(href) +
-            '" target="_blank" rel="noopener noreferrer">' + sr(lk.label || 'Learn more →') + '</a>';
+            '" target="_blank" rel="noopener noreferrer">' + sr(trNote(lk.label || 'Learn more →')) + '</a>';
         }).filter(Boolean).join('');
-        cta = (c.hint ? '<div class="wln-card-hint">' + sr(c.hint) + '</div>' : '') +
+        cta = (c.hint ? '<div class="wln-card-hint">' + sr(trNote(c.hint)) + '</div>' : '') +
               (linkHtml ? '<div class="wln-card-links">' + linkHtml + '</div>' : '');
         var bodyHtml = '';
         if (Array.isArray(c.bullets) && c.bullets.length) {
           bodyHtml = '<ul class="wln-card-list">' +
-            c.bullets.map(function(b) { return '<li>' + sr(b) + '</li>'; }).join('') +
+            c.bullets.map(function(b) { return '<li>' + sr(trNote(b)) + '</li>'; }).join('') +
             '</ul>';
         } else if (c.body) {
-          bodyHtml = '<p class="wln-card-body">' + sr(c.body) + '</p>';
+          bodyHtml = '<p class="wln-card-body">' + sr(trNote(c.body)) + '</p>';
         }
         var iconFile = safeAssetFile(c.iconImg);
         var iconHtml = iconFile
@@ -207,8 +210,8 @@
             '<div class="wln-card-top">' +
               iconHtml +
               '<div class="wln-card-heading">' +
-                '<div class="wln-card-name">' + sr(c.name || '') + '</div>' +
-                '<div class="wln-card-tag">' + sr(c.tag || '') + '</div>' +
+                '<div class="wln-card-name">' + sr(trNote(c.name || '')) + '</div>' +
+                '<div class="wln-card-tag">' + sr(trNote(c.tag || '')) + '</div>' +
               '</div>' +
             '</div>' +
             bodyHtml +
@@ -226,20 +229,20 @@
       var blogHref = note.blogLink && note.blogLink.href ? safeHttpsUrl(note.blogLink.href) : null;
       if (blogHref) {
         blogBtn = '<a class="wln-blog-link" href="' + escapeAttr(blogHref) +
-          '" target="_blank" rel="noopener noreferrer">' + sr(note.blogLink.label || 'Read more →') + '</a>';
+          '" target="_blank" rel="noopener noreferrer">' + sr(trNote(note.blogLink.label || 'Read more →')) + '</a>';
       }
 
       return '' +
         '<div class="wln">' +
           '<button type="button" class="wln-dismiss" id="wwnDismiss" aria-label="Dismiss">✕</button>' +
           heroHtml +
-          '<span class="wln-eyebrow">🎉&nbsp; ' + sr(note.eyebrow || '') + '</span>' +
-          '<h2 class="wln-title">' + sr(note.title || '') + '</h2>' +
-          (note.subtitle ? '<div class="wln-subtitle">' + sr(note.subtitle) + '</div>' : '') +
+          '<span class="wln-eyebrow">🎉&nbsp; ' + sr(trNote(note.eyebrow || '')) + '</span>' +
+          '<h2 class="wln-title">' + sr(trNote(note.title || '')) + '</h2>' +
+          (note.subtitle ? '<div class="wln-subtitle">' + sr(trNote(note.subtitle)) + '</div>' : '') +
           '<div class="wln-cards">' + cards + '</div>' +
           ((note.note || note.sign)
-            ? '<div class="wln-note">' + sr(note.note || '') +
-                (note.sign ? ' <span class="wln-sign">' + sr(note.sign) + '</span>' : '') +
+            ? '<div class="wln-note">' + sr(trNote(note.note || '')) +
+                (note.sign ? ' <span class="wln-sign">' + sr(trNote(note.sign)) + '</span>' : '') +
               '</div>'
             : '') +
           blogBtn +
@@ -251,6 +254,7 @@
       if (!banner) return;
 
       function showNote(note) {
+        banner.setAttribute('data-i18n-skip', '');
         banner.innerHTML = buildNoteHTML(note);
         banner.classList.remove('hidden');
         var dismiss = banner.querySelector('#wwnDismiss');
@@ -309,20 +313,23 @@
       });
 
       function render(i) {
-        var t = WELCOME_TIPS[i];
-        if (!t) return;
-        iconEl.textContent = t.icon || '💡';
-        titleEl.innerHTML = t.title || '';
-        if (t.badge) { badgeEl.textContent = t.badge; badgeEl.classList.remove('hidden'); }
+        var tip = WELCOME_TIPS[i];
+        var tr = window.t || function (s) { return s; };
+        if (!tip) return;
+        iconEl.textContent = tip.icon || '💡';
+        titleEl.setAttribute('data-i18n-skip', '');
+        bodyEl.setAttribute('data-i18n-skip', '');
+        titleEl.innerHTML = tr(tip.title || '');
+        if (tip.badge) { badgeEl.textContent = tr(tip.badge); badgeEl.classList.remove('hidden'); }
         else badgeEl.classList.add('hidden');
-        bodyEl.innerHTML = t.body || '';
-        if (t.action && t.action.label) {
+        bodyEl.innerHTML = tr(tip.body || '');
+        if (tip.action && tip.action.label) {
           actionEl.innerHTML = '';
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'wtc-link';
-          btn.textContent = t.action.label;
-          btn.addEventListener('click', function(ev) { ev.preventDefault(); if (typeof t.action.onClick === 'function') t.action.onClick(); });
+          btn.textContent = tr(tip.action.label);
+          btn.addEventListener('click', function(ev) { ev.preventDefault(); if (typeof tip.action.onClick === 'function') tip.action.onClick(); });
           actionEl.appendChild(btn);
           actionEl.classList.remove('hidden');
         } else {

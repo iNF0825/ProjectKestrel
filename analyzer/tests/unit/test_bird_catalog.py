@@ -21,6 +21,7 @@ from kestrel_analyzer.bird_catalog import (
     DEFAULT_REGION_SELECTION,
     REGION_LABELS,
     load_catalog,
+    record_to_dict,
     score_record,
     _is_subsequence,
     _token_prefix_match,
@@ -452,3 +453,49 @@ class TestTokenPrefix:
 
     def test_query_token_must_be_prefix_not_substring(self):
         assert not _token_prefix_match(["rob"], ["barnswallow"])
+
+
+class TestZhHantNames:
+
+    def test_taiwan_name_is_attached_by_scientific_name(self, catalog):
+        matches = [r for r in catalog.records if r.scientific_name == "Hypothymis azurea"]
+        assert matches
+        assert matches[0].name_zh == "黑枕藍鶲"
+
+    def test_missing_chinese_name_stays_blank(self):
+        rec = BirdRecord(
+            canonical_common_name="Example Bird", scientific_name="Genus species",
+            family_sci="Family", family_common="Family sp.",
+            order="Order", regions=frozenset({"OR"}),
+            alpha_4="", aliases=(), is_model_species=False,
+        )
+        assert rec.name_zh == ""
+        assert score_record("黑枕", rec) == 0
+        assert record_to_dict(rec)["name_zh"] == ""
+
+    def test_chinese_query_ranks_exact_then_substring(self):
+        rec = BirdRecord(
+            canonical_common_name="Black-naped Monarch", scientific_name="Hypothymis azurea",
+            family_sci="Monarchidae", family_common="Monarch sp.",
+            order="Passeriformes", regions=frozenset({"OR"}),
+            alpha_4="", aliases=(), is_model_species=False, name_zh="黑枕藍鶲",
+        )
+        assert score_record("黑枕藍鶲", rec) == 900
+        assert score_record("黑枕", rec) > 0
+        assert record_to_dict(rec)["name_zh"] == "黑枕藍鶲"
+        assert record_to_dict(rec)["canonical_common_name"] == "Black-naped Monarch"
+
+    def test_taiwan_name_overrides_ioc_traditional(self):
+        import importlib.util
+        path = Path(__file__).resolve().parents[3] / "tools" / "build_zh_hant_names.py"
+        spec = importlib.util.spec_from_file_location("build_zh_hant_names", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        assert mod.choose_display_name("黑枕王鶲", "黑枕王鹟", "黑枕藍鶲") == "黑枕藍鶲"
+        assert mod.choose_display_name("黑枕藍鶲〔黑枕王鶲〕", "黑枕王鹟", "") == "黑枕藍鶲"
+
+        class _Converter:
+            def convert(self, text):
+                return "喜鵲" if text == "喜鹊" else text
+
+        assert mod.choose_display_name("", "喜鹊", "", _Converter()) == "喜鵲"
