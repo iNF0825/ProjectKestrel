@@ -74,7 +74,7 @@ except ImportError:  # pragma: no cover - import only fails in odd test sandboxe
     except ImportError:
         _BIRD_REGION_CODES = ('NA',)
 _ALLOWED_BIRD_REGIONS = set(_BIRD_REGION_CODES)
-_DEFAULT_BIRD_REGIONS: list[str] = ['NA']
+_DEFAULT_BIRD_REGIONS: list[str] = ['OR', 'PAL']
 # Legacy detector names → current names. Applied silently at load to migrate
 # stored settings from older builds. UI semantics ("Fast"/"Accurate") are
 # preserved, so users never see a change.

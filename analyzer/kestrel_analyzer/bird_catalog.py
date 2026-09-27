@@ -47,7 +47,7 @@ REGION_LABELS: dict[str, str] = {
     "Worldwide": "Worldwide (cosmopolitan species)",
 }
 
-DEFAULT_REGION_SELECTION: tuple[str, ...] = ("NA",)
+DEFAULT_REGION_SELECTION: tuple[str, ...] = ("OR", "PAL",)
 
 
 @dataclass(frozen=True)

@@ -43,7 +43,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.35 system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font: 14px/1.35 "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   display: flex;
   flex-direction: column;
   height: 100vh;

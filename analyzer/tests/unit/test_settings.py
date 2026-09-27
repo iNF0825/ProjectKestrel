@@ -436,11 +436,11 @@ class TestBirdRegionsSetting:
     def test_empty_list_falls_back_to_default(self):
         result = _sanitize_settings_payload({"bird_regions": []})
         assert "bird_regions" in result
-        assert result["bird_regions"] == ["NA"]
+        assert result["bird_regions"] == ["OR", "PAL"]
 
     def test_all_invalid_falls_back_to_default(self):
         result = _sanitize_settings_payload({"bird_regions": ["XYZ", "ABC"]})
-        assert result["bird_regions"] == ["NA"]
+        assert result["bird_regions"] == ["OR", "PAL"]
 
     def test_duplicates_deduplicated(self):
         result = _sanitize_settings_payload({"bird_regions": ["NA", "NA", "AU"]})
@@ -449,7 +449,7 @@ class TestBirdRegionsSetting:
 
     def test_non_list_resets_to_default(self):
         result = _sanitize_settings_payload({"bird_regions": "NA"})
-        assert result["bird_regions"] == ["NA"]
+        assert result["bird_regions"] == ["OR", "PAL"]
 
     def test_non_string_items_skipped(self):
         result = _sanitize_settings_payload({"bird_regions": ["NA", 42, None, "PAL"]})

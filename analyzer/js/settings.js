@@ -276,6 +276,16 @@
       const customHint = document.getElementById('customEditorHint');
       const customPath = document.getElementById('customEditorPath');
       editorSelect.value = editor;
+      const langSelect = document.getElementById('uiLanguage');
+      if (langSelect) {
+        langSelect.value = (window.kestrelI18n && kestrelI18n.getLanguage()) || 'zh-Hant';
+        if (!langSelect.dataset.wired) {
+          langSelect.dataset.wired = '1';
+          langSelect.addEventListener('change', () => {
+            if (window.kestrelI18n) kestrelI18n.setLanguage(langSelect.value);
+          });
+        }
+      }
       // If saved editor isn't in the dropdown options, treat as custom
       if (editorSelect.value !== editor) {
         editorSelect.value = 'custom';
@@ -366,10 +376,10 @@
         // Make sure catalog meta is loaded before we paint checkboxes -- the
         // load is cached so re-entering Settings is cheap.
         try { await loadSpeciesFamilyMap(); } catch (_) { /* non-fatal */ }
-        const meta = _birdCatalogMeta || { regions: [], default_regions: ['NA'] };
+        const meta = _birdCatalogMeta || { regions: [], default_regions: ['OR', 'PAL'] };
         const selected = new Set(_getCurrentBirdRegions());
         if (!Array.isArray(meta.regions) || meta.regions.length === 0) {
-          regionsPicker.innerHTML = '<span class="muted" style="font-size:11px">Region list unavailable — defaulting to North America.</span>';
+          regionsPicker.innerHTML = '<span class="muted" style="font-size:11px">Region list unavailable — defaulting to South &amp; SE Asia and Eurasia.</span>';
         } else {
           regionsPicker.innerHTML = meta.regions.map(r => {
             const checked = selected.has(r.code) ? 'checked' : '';
@@ -409,8 +419,8 @@
       const nextCustom = JSON.stringify(normalizeCustomThresholds(_customThresholds));
 
       // ── Species & Region: collect region picker state + show-sci toggle ──
-      // An empty selection falls back to ``['NA']`` rather than producing an
-      // unusable combobox where no species ever surface.
+      // An empty selection falls back to Oriental + Palearctic rather than
+      // producing an unusable combobox where no species ever surface.
       const regionsPicker = document.getElementById('birdRegionsPicker');
       const regionInputs = regionsPicker
         ? regionsPicker.querySelectorAll('input.bird-region-cb')
@@ -419,7 +429,7 @@
         .filter(cb => cb.checked)
         .map(cb => cb.dataset.regionCode)
         .filter(c => typeof c === 'string' && c.length > 0);
-      const finalRegions = birdRegions.length > 0 ? birdRegions : ['NA'];
+      const finalRegions = birdRegions.length > 0 ? birdRegions : ['OR', 'PAL'];
       const showSciCbEl = document.getElementById('showScientificNames');
       const showScientificNames = showSciCbEl ? !!showSciCbEl.checked : !!existing.show_scientific_names;
       const prevRegions = Array.isArray(existing.bird_regions) ? existing.bird_regions.slice().sort().join(',') : '';

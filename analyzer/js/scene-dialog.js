@@ -772,14 +772,14 @@
     }
 
     /** Return the user's selected biogeographic regions for the combobox.
-     *  Falls back to the catalog meta's default selection (typically ``['NA']``). */
+     *  Falls back to the catalog meta's default selection (Oriental + Palearctic). */
     function _getCurrentBirdRegions() {
       const v = getSetting('bird_regions', null);
       if (Array.isArray(v) && v.length > 0) return v.filter(r => typeof r === 'string' && r);
       if (_birdCatalogMeta && Array.isArray(_birdCatalogMeta.default_regions) && _birdCatalogMeta.default_regions.length) {
         return _birdCatalogMeta.default_regions.slice();
       }
-      return ['NA'];
+      return ['OR', 'PAL'];
     }
 
     /** Return whether scientific-name subtext should render under species/family pills. */
