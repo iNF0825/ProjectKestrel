@@ -23,6 +23,7 @@ from .provider_coordinator import (
     FailureAction,
     ProviderCoordinator,
     ResilienceConfig,
+    is_session_dead,
 )
 from .resilient_session import ResilientOnnxSession
 from .speciesnet_taxonomy import (
@@ -399,13 +400,22 @@ class OnnxMDv5Detector:
         debug(f"[OnnxMDv5Detector] Loaded {onnx_path.name}  providers={_provs}")
 
     def preprocess(self, img_pil: "Image.Image") -> tuple:
-        """Resize image to 1280x1280 (simple resize, not letterbox)."""
+        """Resize image to 1280x1280 (simple resize, not letterbox).
+
+        cv2 walks the full-resolution frame in SIMD. PIL's resize does the
+        same bilinear sample in Python and dominates detector time on 40+ MP
+        RAW before the network even starts.
+        """
         orig_w, orig_h = img_pil.size
-        img_1280 = np.array(
-            img_pil.resize((self._INPUT_SIZE, self._INPUT_SIZE), Image.BILINEAR),
-            dtype=np.float32,
+        src = np.asarray(img_pil)
+        resized = cv2.resize(
+            src,
+            (self._INPUT_SIZE, self._INPUT_SIZE),
+            interpolation=cv2.INTER_LINEAR,
+        )
+        img_tensor = np.ascontiguousarray(
+            resized.astype(np.float32).transpose(2, 0, 1)[np.newaxis]
         ) / 255.0
-        img_tensor = img_1280.transpose(2, 0, 1)[np.newaxis]
         return (img_tensor, orig_w, orig_h)
 
     @staticmethod
@@ -618,15 +628,21 @@ class OnnxMDv1000CedarDetector:
         new_w = max(1, int(round(orig_w * scale)))
         new_h = max(1, int(round(orig_h * scale)))
 
-        resized = img_pil.resize((new_w, new_h), Image.Resampling.BILINEAR)
         pad_left = (self._INPUT_SIZE - new_w) // 2
         pad_top = (self._INPUT_SIZE - new_h) // 2
 
-        canvas = Image.new("RGB", (self._INPUT_SIZE, self._INPUT_SIZE), self._PAD_COLOR)
-        canvas.paste(resized, (pad_left, pad_top))
+        src = np.asarray(img_pil)
+        resized = cv2.resize(src, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        canvas = np.full(
+            (self._INPUT_SIZE, self._INPUT_SIZE, 3),
+            self._PAD_COLOR,
+            dtype=np.uint8,
+        )
+        canvas[pad_top:pad_top + new_h, pad_left:pad_left + new_w] = resized
 
-        img_np = np.asarray(canvas, dtype=np.float32) / 255.0
-        img_tensor = img_np.transpose(2, 0, 1)[np.newaxis]  # [1, 3, 640, 640]
+        img_tensor = np.ascontiguousarray(
+            canvas.astype(np.float32).transpose(2, 0, 1)[np.newaxis]
+        ) / 255.0
         return (img_tensor, float(scale), int(pad_left), int(pad_top), int(orig_w), int(orig_h))
 
     def predict(self, filepath: str, det_input: tuple) -> dict:
@@ -1155,7 +1171,9 @@ class SpeciesNetSAMHQWrapper:
             self._coord.attempt_promotion()
 
         last_exc: Optional[BaseException] = None
-        for attempt in range(self._coord.cfg.max_attempts_per_image):
+        gpu_refreshed = False
+        cpu_attempts = 0
+        while True:
             try:
                 result = self._get_prediction_inner(
                     image_data,
@@ -1168,7 +1186,23 @@ class SpeciesNetSAMHQWrapper:
                 return result
             except Exception as e:
                 last_exc = e
-                if attempt + 1 >= self._coord.cfg.max_attempts_per_image:
+                # Refresh DirectML once before giving the device up. The runtime's
+                # own fallback would otherwise pin every session to CPU for the
+                # rest of the folder after a single localized status string.
+                if (
+                    not gpu_refreshed
+                    and self._coord.cfg.max_attempts_per_image > 1
+                    and self._coord.effective_use_gpu
+                    and is_session_dead(e, aggressive=self._coord.cfg.aggressive_recreate)
+                ):
+                    gpu_refreshed = True
+                    try:
+                        self.recreate_sessions(target_use_gpu=True)
+                    except Exception:
+                        raise last_exc
+                    continue
+                cpu_attempts += 1
+                if cpu_attempts >= self._coord.cfg.max_attempts_per_image:
                     raise
                 action = self._coord.on_run_failure(e)
                 if action != FailureAction.RECREATE_AND_RETRY:
@@ -1258,13 +1292,6 @@ class SpeciesNetSAMHQWrapper:
 
         if self.predictor is None:
             return [], [], [], []
-
-        # Encode once — all detections on this image share the same embeddings
-        image_embeddings, interm_embeddings, resized_hw, original_hw = self.predictor.encode(image_data)
-        debug(
-            f"[SAM-HQ] encoder: image={os.path.basename(fp)} mode=single-per-image "
-            f"detections={len(animal_dets)}"
-        )
 
         # Batch classifier preprocess + ONNX inference for all detections in this image.
         classifier_preds_by_idx: dict[int, dict[str, Any]] = {}
@@ -1410,6 +1437,14 @@ class SpeciesNetSAMHQWrapper:
             )
 
         if sam_decode_candidates:
+            # The encoder is a full-frame forward pass. Run it only after the
+            # classifier has kept at least one box, so empty frames and
+            # rejected proposals skip SAM entirely.
+            image_embeddings, interm_embeddings, resized_hw, original_hw = self.predictor.encode(image_data)
+            debug(
+                f"[SAM-HQ] encoder: image={os.path.basename(fp)} mode=single-per-image "
+                f"detections={len(sam_decode_candidates)}"
+            )
             sam_results: list[tuple[np.ndarray, float]] = []
             try:
                 if getattr(self.predictor, "_supports_prompt_batching", False):

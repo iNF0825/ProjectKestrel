@@ -52,7 +52,20 @@ class ResilientOnnxSession:
         import onnxruntime as ort  # imported lazily so test environments without ORT can import this module
 
         providers = self._coord.providers_for(self._kind)
-        self._session = ort.InferenceSession(str(self._path), providers=providers)
+        # Warning logs on a Chinese Windows install are encoded in the ANSI
+        # code page. ONNX Runtime then fails to decode them as UTF-8 and treats
+        # that as an execution-provider failure, which permanently replaces
+        # DirectML with CPU. Keep error-level logs, and refuse that fallback so
+        # a single bad status cannot pin the session off the GPU.
+        options = ort.SessionOptions()
+        options.log_severity_level = 3
+        self._session = ort.InferenceSession(
+            str(self._path),
+            sess_options=options,
+            providers=providers,
+        )
+        if hasattr(self._session, "disable_fallback"):
+            self._session.disable_fallback()
 
     def _rebuild(self) -> None:
         """Drop the current session and build a new one using the coordinator's
@@ -75,11 +88,31 @@ class ResilientOnnxSession:
     # ---- pass-through API mirroring ort.InferenceSession ----
 
     def run(self, output_names, input_feed, run_options=None):
+        from .provider_coordinator import is_session_dead
+
         try:
             return self._session.run(output_names, input_feed, run_options)
-        except Exception:
-            # Re-raise unchanged. The coordinator is consulted at the wrapper /
-            # per-image-retry level, NOT here, so we don't double-handle.
+        except Exception as exc:
+            normalized = _normalize_provider_error(exc)
+            # One fresh session on the same provider. A DirectML device that
+            # just reported a localized status often accepts the next session;
+            # rebuilding here keeps the run on GPU instead of letting the image
+            # loop demote to CPU.
+            if (
+                is_session_dead(normalized)
+                and self._coord.effective_use_gpu
+                and not getattr(self, "_retrying", False)
+            ):
+                self._retrying = True
+                try:
+                    self._rebuild()
+                    return self._session.run(output_names, input_feed, run_options)
+                except Exception:
+                    raise normalized from exc
+                finally:
+                    self._retrying = False
+            if normalized is not exc:
+                raise normalized from exc
             raise
 
     def get_providers(self) -> list[str]:
@@ -90,6 +123,29 @@ class ResilientOnnxSession:
 
     def get_outputs(self):
         return self._session.get_outputs()
+
+
+def _normalize_provider_error(exc: BaseException) -> BaseException:
+    """Turn a non-UTF-8 provider status into ``OrtProviderStatusError``.
+
+    ``EPFail`` is raised inside ONNX Runtime before this wrapper sees it. On
+    zh-TW Windows its message is often the codec error itself, so the device
+    HRESULT never reaches ``is_session_dead``.
+    """
+    from .provider_coordinator import (
+        OrtProviderStatusError,
+        status_text_from_unicode_error,
+    )
+
+    if isinstance(exc, OrtProviderStatusError):
+        return exc
+    if isinstance(exc, UnicodeDecodeError):
+        return OrtProviderStatusError(status_text_from_unicode_error(exc))
+    if type(exc).__name__ == "EPFail":
+        msg = str(exc)
+        if "utf-8" in msg and "codec" in msg:
+            return OrtProviderStatusError(msg)
+    return exc
 
 
 __all__ = ["ResilientOnnxSession"]

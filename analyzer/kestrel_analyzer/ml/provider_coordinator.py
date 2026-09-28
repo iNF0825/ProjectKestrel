@@ -27,6 +27,7 @@ sequentially. If parallel-image processing is ever introduced, add a lock around
 from __future__ import annotations
 
 import gc
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -86,14 +87,65 @@ _SESSION_DEAD_SIGNATURES: tuple[str, ...] = (
 )
 
 
+class OrtProviderStatusError(RuntimeError):
+    """ONNX Runtime failed, and its status text was not UTF-8.
+
+    DirectML formats device-removed errors with the Windows ANSI code page.
+    On a Traditional Chinese install that is CP950, so a byte such as ``0xA4``
+    is a legal Big5 lead and an illegal UTF-8 start. The Python binding then
+    raises ``UnicodeDecodeError`` and the real HRESULT never reaches
+    ``is_session_dead``, so the run stays on the dead GPU and every later
+    photo fails the same way.
+    """
+
+    def __init__(self, status_text: str) -> None:
+        self.status_text = status_text
+        super().__init__(status_text or "ONNX Runtime reported a non-UTF-8 status")
+
+
+def status_text_from_unicode_error(exc: UnicodeDecodeError) -> str:
+    """Recover the bytes a UTF-8 decode rejected, using the ANSI code page.
+
+    ``mbcs`` is the process ANSI code page (CP950 on zh-TW Windows). CP950 and
+    CP936 are fallbacks for machines where ``mbcs`` is unavailable, including
+    tests and non-Windows CI. ASCII in the prefix is identical in all of them,
+    so an HRESULT such as ``887A0005`` survives even when the tail is Chinese.
+    """
+    raw = exc.object
+    if isinstance(raw, str):
+        raw = raw.encode("latin-1", errors="replace")
+    if not isinstance(raw, (bytes, bytearray)):
+        return str(exc)
+    blob = bytes(raw)
+    encodings: list[str] = []
+    if sys.platform == "win32":
+        encodings.append("mbcs")
+    encodings.extend(("cp950", "cp936"))
+    for enc in encodings:
+        try:
+            return blob.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return blob.decode("utf-8", errors="replace")
+
+
 def is_session_dead(exc: BaseException, *, aggressive: bool = False) -> bool:
     """Return True if ``exc`` indicates the ONNX session needs to be recreated.
 
     Conservative by default: only known broken-session signatures match. With
     ``aggressive=True``, any ``onnxruntime`` Fail/RuntimeException matches —
     useful as a triage flag when a new failure mode appears in the wild.
+
+    ``OrtProviderStatusError`` is always treated as session-dead. It is raised
+    only when a session ``run`` failed and the status bytes were not UTF-8, which
+    on this app is the localized DirectML device-removed path.
     """
+    if isinstance(exc, OrtProviderStatusError):
+        return True
+
     msg = str(exc) if exc is not None else ""
+    if isinstance(exc, UnicodeDecodeError):
+        msg = status_text_from_unicode_error(exc) + "\n" + msg
     type_name = type(exc).__name__ if exc is not None else ""
 
     if any(sig in msg for sig in _SESSION_DEAD_SIGNATURES):
@@ -308,8 +360,10 @@ class ProviderCoordinator:
 
 __all__ = [
     "FailureAction",
+    "OrtProviderStatusError",
     "ProviderCoordinator",
     "ProviderState",
     "ResilienceConfig",
     "is_session_dead",
+    "status_text_from_unicode_error",
 ]

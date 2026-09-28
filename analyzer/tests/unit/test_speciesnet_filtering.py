@@ -8,6 +8,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from kestrel_analyzer.ml.speciesnet_sam_hq import (
+    OnnxMDv5Detector,
+    OnnxMDv1000CedarDetector,
     _box_iou,
     _box_intersection_over_min_area,
     filter_overlapping_detections,
@@ -219,3 +221,32 @@ class TestMDBboxConversion:
         # Should clip to img bounds
         assert x2 <= 100
         assert y2 <= 100
+
+
+class TestDetectorPreprocess:
+    """Resize path used before the detector network. No weights required."""
+
+    def test_mdv5a_squashes_to_1280(self):
+        from PIL import Image
+
+        det = OnnxMDv5Detector.__new__(OnnxMDv5Detector)
+        img = Image.fromarray(np.zeros((100, 80, 3), dtype=np.uint8))
+        tensor, orig_w, orig_h = det.preprocess(img)
+        assert tensor.shape == (1, 3, 1280, 1280)
+        assert tensor.dtype == np.float32
+        assert (orig_w, orig_h) == (80, 100)
+        assert float(tensor.max()) == pytest.approx(0.0)
+
+    def test_cedar_letterbox_is_640_and_padded(self):
+        from PIL import Image
+
+        det = OnnxMDv1000CedarDetector.__new__(OnnxMDv1000CedarDetector)
+        img = Image.fromarray(np.full((100, 200, 3), 255, dtype=np.uint8))
+        tensor, scale, pad_left, pad_top, orig_w, orig_h = det.preprocess(img)
+        assert tensor.shape == (1, 3, 640, 640)
+        assert (orig_w, orig_h) == (200, 100)
+        assert scale == pytest.approx(640 / 200)
+        assert pad_left == 0
+        assert pad_top > 0
+        # Grey pad (114/255) sits above the resized photo.
+        assert float(tensor[0, 0, 0, 0]) == pytest.approx(114 / 255)
